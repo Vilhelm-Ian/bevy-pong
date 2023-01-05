@@ -10,14 +10,17 @@ extern crate approx;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
+        .add_event::<CollisionEvent>()
         .add_startup_system(setup)
         .add_system(movement)
         .add_system(ball_movement)
         .add_system(ball_collision)
+        .add_system(reach_ball)
+        .add_system(update_enemy)
         .run();
 }
 
-struct Linear_Equation {
+struct LinearEquation {
     b: f32,
     m: f32,
 }
@@ -47,11 +50,15 @@ struct Wall;
 #[derive(Component)]
 struct Collider;
 
+struct CollisionEvent;
+
 #[derive(Component)]
 struct Player;
 
 #[derive(Component)]
-struct Enemy;
+struct Enemy {
+    goal_reached: bool,
+}
 
 fn setup(
     mut commands: Commands,
@@ -90,7 +97,7 @@ fn setup(
             },
             ..default()
         },
-        Enemy,
+        Enemy { goal_reached: true },
         Collider,
     ));
 
@@ -172,14 +179,15 @@ fn movement(
 fn ball_movement(mut sprite_position: Query<(&mut Ball, &mut Transform)>) {
     let (mut ball, mut transform) = sprite_position.single_mut();
     ball.previous_position = ball.position;
-    transform.translation.x += 1.0 * ball.x_change;
+    transform.translation.x += 4.0 * ball.x_change;
     transform.translation.y += 1.0 * ball.y_change;
     ball.position = transform.translation.truncate();
 }
 
 fn ball_collision(
     mut ball_query: Query<(&mut Ball, &Transform), With<Ball>>,
-    collider_query: Query<&Transform, With<Collider>>,
+    collider_query: Query<(&Transform), With<Collider>>,
+    mut collision_event: EventWriter<CollisionEvent>,
 ) {
     let (mut ball, ball_transform) = ball_query.single_mut();
     let ball_size = ball_transform.scale.truncate();
@@ -193,35 +201,69 @@ fn ball_collision(
         if let Some(collision) = collision {
             println!("collision {:?}", collision);
             match collision {
-                Collision::Left | Collision::Right => ball.x_change *= -1.0,
-                Collision::Top | Collision::Bottom => ball.y_change *= -1.0,
-                Collision::Inside => (),
+                Collision::Left | Collision::Right | Collision::Inside => ball.x_change *= -1.0,
+                Collision::Top | Collision::Bottom | Collision::Inside => ball.y_change *= -1.0,
             }
+            collision_event.send(CollisionEvent);
         }
     }
 }
 
-fn create_linear_equation(a: Vec2, b: Vec2) -> Linear_Equation {
+fn create_linear_equation(a: Vec2, b: Vec2) -> LinearEquation {
     let m = (b.y - a.y) / (b.x - a.x);
     let b = b.y - b.x * m;
-    Linear_Equation { m, b }
+    LinearEquation { m, b }
 }
 
-fn predict_ball(ball: Ball, enemy_horizontal_position: f32) -> f32 {
+fn predict_ball(ball: &Ball, enemy_horizontal_position: f32) -> f32 {
     let linnear_equation = create_linear_equation(ball.previous_position, ball.position);
     linnear_equation.m * enemy_horizontal_position + linnear_equation.b
 }
 
+fn update_enemy(
+    mut collision_event: EventReader<CollisionEvent>,
+    mut enemy_query: Query<&mut Enemy>,
+) {
+    let mut enemy = enemy_query.single_mut();
+    for _ in collision_event.iter() {
+        enemy.goal_reached = false;
+        println!("event recived");
+    }
+}
+
+fn reach_ball(
+    mut ball_query: Query<(&Ball, &Transform), With<Ball>>,
+    mut enemy_query: Query<(&mut Enemy, &mut Transform), Without<Ball>>,
+) {
+    let (mut enemy, mut enemy_transform) = enemy_query.single_mut();
+    if enemy.goal_reached {
+        return;
+    }
+    let (ball, ball_transform) = ball_query.single_mut();
+    let ball_prediction = predict_ball(ball, enemy_transform.translation.x);
+    if enemy_transform.translation.y - ball_prediction > 5.0
+        && enemy_transform.translation.y > -250.0
+    {
+        enemy_transform.translation.y -= 10.0;
+    } else if enemy_transform.translation.y - ball_prediction < -5.0
+        && enemy_transform.translation.y < 250.0
+    {
+        enemy_transform.translation.y += 10.0;
+    } else {
+        enemy.goal_reached = true;
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{create_linear_equation, predict_ball, Ball, Linear_Equation, Vec2};
+    use super::{create_linear_equation, predict_ball, Ball, LinearEquation, Vec2};
 
     #[test]
     fn test_linear_equation() {
         let point1 = Vec2::new(1.0, 2.0);
         let point2 = Vec2::new(4.0, 5.0);
 
-        let expected_linear_equation = Linear_Equation { b: 1.0, m: 1.0 };
+        let expected_linear_equation = LinearEquation { b: 1.0, m: 1.0 };
         let result_linear_equation = create_linear_equation(point1, point2);
 
         assert_abs_diff_eq!(result_linear_equation.m, expected_linear_equation.m);
