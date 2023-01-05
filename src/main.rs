@@ -61,10 +61,13 @@ fn setup(
         SpriteBundle {
             sprite: Sprite {
                 color: Color::rgb(0.25, 0.25, 0.75),
-                custom_size: Some(Vec2::new(50.0, 100.0)),
                 ..default()
             },
-            transform: Transform::from_xyz(-400.0, 0.0, 0.0),
+            transform: Transform {
+                translation: Vec3::new(400.0, 0.0, 0.0),
+                scale: Vec3::new(50.0, 100.0, 0.0),
+                ..default()
+            },
             ..default()
         },
         Collider,
@@ -74,10 +77,13 @@ fn setup(
         SpriteBundle {
             sprite: Sprite {
                 color: Color::rgb(0.25, 0.25, 0.75),
-                custom_size: Some(Vec2::new(50.0, 100.0)),
                 ..default()
             },
-            transform: Transform::from_xyz(400.0, 0.0, 0.0),
+            transform: Transform {
+                translation: Vec3::new(-400.0, 0.0, 0.0),
+                scale: Vec3::new(50.0, 100.0, 0.0),
+                ..default()
+            },
             ..default()
         },
         Enemy,
@@ -111,6 +117,7 @@ fn ball_movement(mut sprite_position: Query<(&mut Ball, &mut Transform)>) {
     let (mut ball, mut transform) = sprite_position.single_mut();
     ball.previous_position = ball.position;
     transform.translation.x += 1.0 * ball.x_change;
+    //transform.translation.y += 1.0 * ball.x_change;
     ball.position = transform.translation.truncate();
 }
 
@@ -125,14 +132,14 @@ fn collision(
             ball_transform.translation,
             ball_size,
             collider_tarnsform.translation,
-            collider_tarnsform.scale.truncate(),
+            ball_transform.scale.truncate(),
         );
         if let Some(collision) = collision {
             println!("collision {:?}", collision);
             match collision {
                 Collision::Left | Collision::Right => ball.x_change *= -1.0,
                 Collision::Top | Collision::Bottom => ball.y_change *= -1.0,
-                Collision::Inside => ball.x_change *= -1.0,
+                Collision::Inside => (),
             }
         }
     }
