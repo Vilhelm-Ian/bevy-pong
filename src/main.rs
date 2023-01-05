@@ -73,6 +73,7 @@ fn setup(
         Collider,
         Player,
     ));
+
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
@@ -98,6 +99,38 @@ fn setup(
         },
         Ball::new(),
     ));
+    // walls
+    commands.spawn((
+        SpriteBundle {
+            sprite: Sprite {
+                color: Color::rgb(0.25, 0.25, 0.75),
+                ..default()
+            },
+            transform: Transform {
+                translation: Vec3::new(0.0, -300.0, 0.0),
+                scale: Vec3::new(1000.0, 50.0, 0.0),
+                ..default()
+            },
+            ..default()
+        },
+        Collider,
+    ));
+
+    commands.spawn((
+        SpriteBundle {
+            sprite: Sprite {
+                color: Color::rgb(0.25, 0.25, 0.75),
+                ..default()
+            },
+            transform: Transform {
+                translation: Vec3::new(0.0, 300.0, 0.0),
+                scale: Vec3::new(1000.0, 50.0, 0.0),
+                ..default()
+            },
+            ..default()
+        },
+        Collider,
+    ));
 }
 
 fn movement(
@@ -117,7 +150,7 @@ fn ball_movement(mut sprite_position: Query<(&mut Ball, &mut Transform)>) {
     let (mut ball, mut transform) = sprite_position.single_mut();
     ball.previous_position = ball.position;
     transform.translation.x += 1.0 * ball.x_change;
-    //transform.translation.y += 1.0 * ball.x_change;
+    transform.translation.y += 1.0 * ball.y_change;
     ball.position = transform.translation.truncate();
 }
 
@@ -132,7 +165,7 @@ fn collision(
             ball_transform.translation,
             ball_size,
             collider_tarnsform.translation,
-            ball_transform.scale.truncate(),
+            collider_tarnsform.scale.truncate(),
         );
         if let Some(collision) = collision {
             println!("collision {:?}", collision);
