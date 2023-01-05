@@ -13,7 +13,7 @@ fn main() {
         .add_startup_system(setup)
         .add_system(movement)
         .add_system(ball_movement)
-        .add_system(collision)
+        .add_system(ball_collision)
         .run();
 }
 
@@ -40,6 +40,9 @@ impl Ball {
         }
     }
 }
+
+#[derive(Component)]
+struct Wall;
 
 #[derive(Component)]
 struct Collider;
@@ -114,6 +117,7 @@ fn setup(
             ..default()
         },
         Collider,
+        Wall,
     ));
 
     commands.spawn((
@@ -130,19 +134,38 @@ fn setup(
             ..default()
         },
         Collider,
+        Wall,
     ));
 }
 
 fn movement(
     keyboard_input: Res<Input<KeyCode>>,
     mut sprite_position: Query<&mut Transform, With<Player>>,
+    wall_query: Query<&Transform, Without<Player>>,
 ) {
     let mut transform = sprite_position.single_mut();
+    let mut up = 10.0;
+    let mut down = 10.0;
+    for wall_transform in &wall_query {
+        let collider = collide(
+            wall_transform.translation,
+            wall_transform.scale.truncate(),
+            transform.translation,
+            transform.scale.truncate(),
+        );
+        if let Some(collider) = collider {
+            match collider {
+                Collision::Top => up = 0.0,
+                Collision::Bottom => down = 0.0,
+                _ => (),
+            }
+        }
+    }
     if keyboard_input.pressed(KeyCode::Up) {
-        transform.translation.y += 10.0
+        transform.translation.y += up;
     }
     if keyboard_input.pressed(KeyCode::Down) {
-        transform.translation.y -= 10.0
+        transform.translation.y -= down;
     }
 }
 
@@ -154,7 +177,7 @@ fn ball_movement(mut sprite_position: Query<(&mut Ball, &mut Transform)>) {
     ball.position = transform.translation.truncate();
 }
 
-fn collision(
+fn ball_collision(
     mut ball_query: Query<(&mut Ball, &Transform), With<Ball>>,
     collider_query: Query<&Transform, With<Collider>>,
 ) {
